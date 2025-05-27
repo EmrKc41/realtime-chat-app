@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const path = require('path');
 const connectDB = require('./config/db');
 require('dotenv').config();
 
@@ -9,7 +10,7 @@ const server = http.createServer(app);
 
 const io = require('socket.io')(server, {
   cors: {
-    origin: '*', // Geliştirme sürecinde açık bırakıldı
+    origin: '*',
     methods: ['GET', 'POST']
   }
 });
@@ -23,9 +24,15 @@ app.use(express.json());
 // MongoDB bağlantısı
 connectDB();
 
-// Rotalar
+// API Rotaları
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);
+
+// ✅ HTML dosyasını servis etmek için bu iki satır kritik
+app.use(express.static(path.join(__dirname)));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // WebSocket bağlantısı
 io.on('connection', (socket) => {
@@ -35,7 +42,6 @@ io.on('connection', (socket) => {
     const { username, message } = data;
     console.log(`📩 Mesaj alındı [${username}]: ${message}`);
 
-    // Tüm kullanıcılara mesajı gönder
     io.emit('receiveMessage', {
       username,
       message
@@ -47,10 +53,7 @@ io.on('connection', (socket) => {
   });
 });
 
+// Sunucuyu başlat
 server.listen(PORT, () => {
   console.log(`🚀 Sunucu ayakta, port: ${PORT}`);
 });
-/* Sunucuyu IP üzerinden herkese açık çalıştır
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Sunucu ayakta: http://192.168.1.169:${PORT}`);
-});*/
