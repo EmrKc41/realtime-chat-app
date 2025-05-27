@@ -47,7 +47,10 @@ io.on('connection', (socket) => {
   });
 });
 
-// Sunucuyu IP üzerinden herkese açık çalıştır
+server.listen(PORT, () => {
+  console.log(`🚀 Sunucu ayakta, port: ${PORT}`);
+});
+/* Sunucuyu IP üzerinden herkese açık çalıştır
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Sunucu ayakta: http://192.168.1.169:${PORT}`);
-});
+});*/
