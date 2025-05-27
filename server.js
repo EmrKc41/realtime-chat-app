@@ -28,8 +28,7 @@ connectDB();
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);
 
-// ✅ HTML dosyasını servis etmek için bu iki satır kritik
-app.use(express.static(path.join(__dirname)));
+// ✅ SADECE bu yeterli
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
