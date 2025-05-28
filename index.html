@@ -1,106 +1,97 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
   <title>Canlı Chat</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #111;
+      background-color: #111;
       color: #fff;
-      margin: 0;
-      padding: 0;
+      font-family: Arial, sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
+      margin: 0;
     }
-
     .chat-container {
-      width: 400px;
-      background: #1e1e1e;
+      background-color: #1e1e1e;
+      padding: 20px;
       border-radius: 10px;
-      overflow: hidden;
+      width: 100%;
+      max-width: 500px;
       display: flex;
       flex-direction: column;
+      gap: 10px;
     }
-
     .chat-header {
-      background: #2a2a2a;
-      padding: 15px;
-      font-weight: bold;
-      font-size: 18px;
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
+      font-weight: bold;
+      font-size: 16px;
     }
-
-    .chat-body {
-      flex: 1;
+    .chat-messages {
+      background-color: #222;
       padding: 10px;
+      border-radius: 10px;
+      height: 300px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 5px;
     }
-
     .message {
+      padding: 8px 12px;
+      border-radius: 15px;
       max-width: 70%;
-      padding: 10px;
-      border-radius: 10px;
       word-wrap: break-word;
     }
-
-    .incoming {
-      align-self: flex-start;
-      background: #2e2e2e;
-    }
-
-    .outgoing {
-      align-self: flex-end;
-      background: #0b93f6;
-    }
-
-    .chat-footer {
-      display: flex;
-      padding: 10px;
-      background: #2a2a2a;
-    }
-
-    .chat-footer input {
-      flex: 1;
-      padding: 10px;
-      border: none;
-      border-radius: 5px;
-      margin-right: 8px;
-      outline: none;
-    }
-
-    .chat-footer button {
-      padding: 10px 15px;
-      background: #0b93f6;
+    .own {
+      background-color: #007aff;
       color: white;
+      align-self: flex-end;
+      text-align: right;
+    }
+    .other {
+      background-color: #3a3a3a;
+      align-self: flex-start;
+    }
+    .input-area {
+      display: flex;
+      gap: 10px;
+    }
+    #messageInput {
+      flex: 1;
+      padding: 8px;
+      border-radius: 5px;
+      border: none;
+    }
+    #sendBtn {
+      padding: 8px 16px;
+      background-color: #007aff;
       border: none;
       border-radius: 5px;
+      color: white;
       cursor: pointer;
     }
-
     .typing-indicator {
       font-size: 12px;
       color: #aaa;
-      margin-left: 5px;
     }
   </style>
 </head>
 <body>
   <div class="chat-container">
     <div class="chat-header">
-      <span id="chatWith">Kullanıcı</span>
+      <div>
+        <span id="chatWith">Sohbet: </span><br/>
+        <span id="chatTarget" style="font-size: 13px; color: #aaa;"></span>
+      </div>
       <span id="typing" class="typing-indicator" style="display:none;">Yazıyor...</span>
     </div>
-    <div class="chat-body" id="messages"></div>
-    <div class="chat-footer">
+    <div id="messages" class="chat-messages"></div>
+    <div class="input-area">
       <input type="text" id="messageInput" placeholder="Mesaj yaz..." />
       <button id="sendBtn">Gönder</button>
     </div>
@@ -109,35 +100,40 @@
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script>
     const username = prompt("Kullanıcı adınızı girin:");
-    document.getElementById("chatWith").textContent = "Sohbet: " + username;
-
     const socket = io();
+
+    socket.emit("registerUser", username); // kullanıcıyı server'a bildir
 
     const messagesDiv = document.getElementById("messages");
     const input = document.getElementById("messageInput");
     const sendBtn = document.getElementById("sendBtn");
-    const typingIndicator = document.getElementById("typing");
+    const typingSpan = document.getElementById("typing");
+    const chatTarget = document.getElementById("chatTarget");
 
     sendBtn.addEventListener("click", sendMessage);
-
     input.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") sendMessage();
-      else socket.emit("typing");
+      socket.emit("typing");
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendMessage();
+      }
     });
 
     function sendMessage() {
       const message = input.value.trim();
-      if (!message) return;
+      if (message === "") return;
+
       socket.emit("sendMessage", { username, message });
-      addMessage(username, message, true);
+
+      addMessage(username, message, true); // kendi mesajı
       input.value = "";
     }
 
-    function addMessage(sender, message, isOwn) {
-      const msgDiv = document.createElement("div");
-      msgDiv.classList.add("message", isOwn ? "outgoing" : "incoming");
-      msgDiv.textContent = `${sender}: ${message}`;
-      messagesDiv.appendChild(msgDiv);
+    function addMessage(user, message, isOwn = false) {
+      const msgEl = document.createElement("div");
+      msgEl.classList.add("message", isOwn ? "own" : "other");
+      msgEl.textContent = `${user}: ${message}`;
+      messagesDiv.appendChild(msgEl);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
@@ -147,11 +143,17 @@
       }
     });
 
+    socket.on("userConnected", (user) => {
+      if (user !== username) {
+        chatTarget.textContent = `Şu anda konuştuğun kişi: ${user}`;
+      }
+    });
+
     socket.on("showTyping", () => {
-      typingIndicator.style.display = "inline";
-      clearTimeout(typingIndicator._timeout);
-      typingIndicator._timeout = setTimeout(() => {
-        typingIndicator.style.display = "none";
+      typingSpan.style.display = "inline";
+      clearTimeout(typingSpan.timer);
+      typingSpan.timer = setTimeout(() => {
+        typingSpan.style.display = "none";
       }, 1500);
     });
   </script>

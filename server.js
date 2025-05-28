@@ -17,25 +17,32 @@ const io = require('socket.io')(server, {
 
 const PORT = process.env.PORT || 5000;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// MongoDB bağlantısı
 connectDB();
 
-// API Rotaları
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);
 
-// ✅ SADECE bu yeterli
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// WebSocket bağlantısı
+// === Kullanıcı adı tutulacak
+const connectedUsers = {};
+
 io.on('connection', (socket) => {
   console.log('🔌 Yeni kullanıcı bağlandı:', socket.id);
+
+  // Kullanıcı adı kaydetme
+  socket.on("registerUser", (username) => {
+    connectedUsers[socket.id] = username;
+    console.log(`👤 Kullanıcı adı kaydedildi: ${username}`);
+
+    // Diğer kullanıcılara bildir
+    socket.broadcast.emit("userConnected", username);
+  });
 
   socket.on('sendMessage', (data) => {
     const { username, message } = data;
@@ -47,17 +54,17 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('disconnect', () => {
-    console.log('❌ Kullanıcı ayrıldı:', socket.id);
-  });
-
-  // Typing event
   socket.on("typing", () => {
     socket.broadcast.emit("showTyping");
   });
+
+  socket.on('disconnect', () => {
+    const user = connectedUsers[socket.id];
+    console.log('❌ Kullanıcı ayrıldı:', socket.id, user);
+    delete connectedUsers[socket.id];
+  });
 });
 
-// Sunucuyu başlat
 server.listen(PORT, () => {
   console.log(`🚀 Sunucu ayakta, port: ${PORT}`);
 });
