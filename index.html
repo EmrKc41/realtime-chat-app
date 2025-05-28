@@ -1,135 +1,158 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gerçek Zamanlı Chat</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Canlı Chat</title>
   <style>
     body {
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: #fff;
       margin: 0;
       padding: 0;
-      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #1e1e1e;
-      color: #f0f0f0;
       display: flex;
-      flex-direction: column;
-      align-items: center;
       justify-content: center;
+      align-items: center;
       height: 100vh;
     }
 
-    h1 {
-      margin-bottom: 20px;
-      font-size: 28px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    h1::before {
-      content: "💬";
-      font-size: 24px;
-    }
-
-    #messages {
-      width: 90%;
-      max-width: 600px;
-      background-color: #2a2a2a;
-      padding: 15px;
+    .chat-container {
+      width: 400px;
+      background: #1e1e1e;
       border-radius: 10px;
-      height: 300px;
-      overflow-y: auto;
-      box-shadow: 0 0 10px #00000033;
-      margin-bottom: 20px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
 
-    #messageInput {
-      width: 70%;
+    .chat-header {
+      background: #2a2a2a;
+      padding: 15px;
+      font-weight: bold;
+      font-size: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chat-body {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .message {
+      max-width: 70%;
+      padding: 10px;
+      border-radius: 10px;
+      word-wrap: break-word;
+    }
+
+    .incoming {
+      align-self: flex-start;
+      background: #2e2e2e;
+    }
+
+    .outgoing {
+      align-self: flex-end;
+      background: #0b93f6;
+    }
+
+    .chat-footer {
+      display: flex;
+      padding: 10px;
+      background: #2a2a2a;
+    }
+
+    .chat-footer input {
+      flex: 1;
       padding: 10px;
       border: none;
       border-radius: 5px;
-      font-size: 16px;
+      margin-right: 8px;
+      outline: none;
     }
 
-    #sendBtn {
-      padding: 10px 20px;
-      margin-left: 10px;
-      background-color: #007bff;
+    .chat-footer button {
+      padding: 10px 15px;
+      background: #0b93f6;
       color: white;
       border: none;
       border-radius: 5px;
-      font-size: 16px;
-      transition: background-color 0.3s ease;
-    }
-
-    #sendBtn:hover {
-      background-color: #0056b3;
       cursor: pointer;
     }
 
-    .message-bubble {
-      padding: 8px 12px;
-      margin-bottom: 10px;
-      border-radius: 8px;
-      background-color: #444;
-      color: #eee;
-    }
-
-    @media (max-width: 600px) {
-      #messageInput, #sendBtn {
-        width: 100%;
-        margin: 5px 0;
-      }
-
-      #sendBtn {
-        margin-left: 0;
-      }
-
-      form {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-      }
+    .typing-indicator {
+      font-size: 12px;
+      color: #aaa;
+      margin-left: 5px;
     }
   </style>
 </head>
 <body>
+  <div class="chat-container">
+    <div class="chat-header">
+      <span id="chatWith">Kullanıcı</span>
+      <span id="typing" class="typing-indicator" style="display:none;">Yazıyor...</span>
+    </div>
+    <div class="chat-body" id="messages"></div>
+    <div class="chat-footer">
+      <input type="text" id="messageInput" placeholder="Mesaj yaz..." />
+      <button id="sendBtn">Gönder</button>
+    </div>
+  </div>
 
-  <h1>Canlı Chat</h1>
-  <div id="messages"></div>
-
-  <form id="chatForm">
-    <input type="text" id="messageInput" placeholder="Mesaj yaz..." autocomplete="off" />
-    <button type="submit" id="sendBtn">Gönder</button>
-  </form>
-
-  <!-- Socket.IO Client -->
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script>
     const username = prompt("Kullanıcı adınızı girin:");
+    document.getElementById("chatWith").textContent = "Sohbet: " + username;
 
     const socket = io();
 
     const messagesDiv = document.getElementById("messages");
     const input = document.getElementById("messageInput");
     const sendBtn = document.getElementById("sendBtn");
-    const chatForm = document.getElementById("chatForm");
+    const typingIndicator = document.getElementById("typing");
 
-    chatForm.addEventListener("submit", (e) => {
-      e.preventDefault();
+    sendBtn.addEventListener("click", sendMessage);
+
+    input.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") sendMessage();
+      else socket.emit("typing");
+    });
+
+    function sendMessage() {
       const message = input.value.trim();
-      if (message !== "") {
-        socket.emit("sendMessage", { username, message });
-        input.value = "";
+      if (!message) return;
+      socket.emit("sendMessage", { username, message });
+      addMessage(username, message, true);
+      input.value = "";
+    }
+
+    function addMessage(sender, message, isOwn) {
+      const msgDiv = document.createElement("div");
+      msgDiv.classList.add("message", isOwn ? "outgoing" : "incoming");
+      msgDiv.textContent = `${sender}: ${message}`;
+      messagesDiv.appendChild(msgDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    socket.on("receiveMessage", (data) => {
+      if (data.username !== username) {
+        addMessage(data.username, data.message, false);
       }
     });
 
-    socket.on("receiveMessage", (data) => {
-      const msgEl = document.createElement("div");
-      msgEl.classList.add("message-bubble");
-      msgEl.textContent = `${data.username}: ${data.message}`;
-      messagesDiv.appendChild(msgEl);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    socket.on("showTyping", () => {
+      typingIndicator.style.display = "inline";
+      clearTimeout(typingIndicator._timeout);
+      typingIndicator._timeout = setTimeout(() => {
+        typingIndicator.style.display = "none";
+      }, 1500);
     });
   </script>
 </body>

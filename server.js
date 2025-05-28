@@ -50,6 +50,11 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('❌ Kullanıcı ayrıldı:', socket.id);
   });
+
+  // Typing event
+  socket.on("typing", () => {
+    socket.broadcast.emit("showTyping");
+  });
 });
 
 // Sunucuyu başlat
