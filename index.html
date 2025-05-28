@@ -5,178 +5,256 @@
   <title>Canlı Sohbet</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background-color: #f4f4f4;
       margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f7f7f7;
     }
     header {
       background-color: #007bff;
       color: white;
       padding: 10px;
-      font-size: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
     #messages {
+      padding: 20px;
       height: 300px;
       overflow-y: auto;
-      padding: 10px;
       background: white;
     }
     .message {
-      padding: 8px;
-      margin: 5px;
-      border-radius: 5px;
+      margin: 10px 0;
+      padding: 10px;
+      border-radius: 10px;
       max-width: 60%;
       clear: both;
     }
     .me {
-      background-color: #DCF8C6;
+      background-color: #d4edda;
       float: right;
+      text-align: right;
     }
     .other {
-      background-color: #ECECEC;
+      background-color: #e2e3e5;
       float: left;
+      text-align: left;
     }
-    #typing {
-      font-style: italic;
-      padding: 5px 10px;
-      color: #666;
-    }
-    footer {
+    #form {
       display: flex;
       padding: 10px;
-      gap: 10px;
-      background: #f0f0f0;
+      background-color: #f1f1f1;
     }
-    footer input {
+    #form input {
       flex: 1;
-      padding: 8px;
+      padding: 10px;
     }
-    footer button {
-      padding: 8px 12px;
+    #form button {
+      padding: 10px 20px;
     }
-    #video-container {
+    #videos {
       display: flex;
       justify-content: center;
-      gap: 10px;
       padding: 10px;
+      background-color: #f1f1f1;
     }
     video {
-      width: 250px;
-      height: 180px;
+      width: 300px;
+      height: 225px;
+      margin: 0 10px;
       background: black;
+    }
+    #incomingCallModal {
+      position: fixed;
+      top: 30%;
+      left: 50%;
+      transform: translate(-50%, -30%);
+      background: white;
+      padding: 20px;
+      box-shadow: 0 0 10px gray;
+      display: none;
+      z-index: 1000;
+    }
+    #incomingCallModal button {
+      margin: 10px;
     }
   </style>
 </head>
 <body>
+
   <header>
-    Sohbet: <span id="activeUser">Bağlandı</span>
-    <button style="float:right" onclick="startCall()">📞 Ara</button>
+    <div id="chatTitle">Sohbet: </div>
+    <button id="callBtn">📞 Ara</button>
   </header>
 
   <div id="messages"></div>
-  <div id="typing"></div>
 
-  <footer>
-    <input id="messageInput" placeholder="Mesajınızı yazın..." />
-    <button onclick="sendMessage()">Gönder</button>
-  </footer>
+  <div id="form">
+    <input type="text" id="messageInput" placeholder="Mesajınızı yazın...">
+    <button id="sendBtn">Gönder</button>
+  </div>
 
-  <div id="video-container">
+  <div id="videos">
     <video id="localVideo" autoplay muted></video>
     <video id="remoteVideo" autoplay></video>
   </div>
 
+  <div id="incomingCallModal">
+    <p>📞 Gelen çağrı!</p>
+    <button id="acceptCallBtn">Kabul Et</button>
+    <button id="declineCallBtn">Reddet</button>
+  </div>
+
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
   <script>
     const socket = io();
-    const messagesDiv = document.getElementById("messages");
-    const input = document.getElementById("messageInput");
-    const typingDiv = document.getElementById("typing");
-    const activeUser = document.getElementById("activeUser");
 
-    let username = prompt("Kullanıcı adınızı girin:").trim();
-    let peer;
+    let localStream;
+    let peerConnection;
+    let remoteSocketId = null;
+    const config = {
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" }
+      ]
+    };
 
-    if (username) {
-      socket.emit("register", username);
-      activeUser.innerText = username;
-    }
+    const username = prompt("Adınızı girin:");
+    document.getElementById("chatTitle").textContent = `Sohbet: ${username}`;
 
-    function sendMessage() {
-      const message = input.value.trim();
-      if (message && username) {
-        socket.emit("sendMessage", { username, message });
-        input.value = "";
-      }
-    }
+    socket.emit("newUser", username);
 
-    input.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") sendMessage();
-      else socket.emit("typing");
+    const messageInput = document.getElementById("messageInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const messages = document.getElementById("messages");
+    const callBtn = document.getElementById("callBtn");
+    const incomingModal = document.getElementById("incomingCallModal");
+    const acceptCallBtn = document.getElementById("acceptCallBtn");
+    const declineCallBtn = document.getElementById("declineCallBtn");
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
+
+    sendBtn.onclick = () => {
+      const msg = messageInput.value.trim();
+      if (!msg) return;
+      socket.emit("sendMessage", { username, message: msg });
+      appendMessage(username + ": " + msg, true);
+      messageInput.value = "";
+    };
+
+    messageInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") sendBtn.click();
     });
 
     socket.on("receiveMessage", (data) => {
+      appendMessage(`${data.username}: ${data.message}`, false);
+    });
+
+    function appendMessage(text, isMe) {
       const div = document.createElement("div");
-      div.classList.add("message");
-      div.classList.add(data.username === username ? "me" : "other");
-      div.innerText = `${data.username}: ${data.message}`;
-      messagesDiv.appendChild(div);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    });
-
-    socket.on("showTyping", () => {
-      typingDiv.innerText = "Yazıyor...";
-      clearTimeout(window.typingTimeout);
-      window.typingTimeout = setTimeout(() => (typingDiv.innerText = ""), 1000);
-    });
-
-    async function startCall() {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      document.getElementById("localVideo").srcObject = stream;
-
-      peer = new SimplePeer({
-        initiator: true,
-        trickle: false,
-        stream
-      });
-
-      peer.on("signal", (signal) => {
-        socket.emit("callUser", { signal, name: username });
-      });
-
-      peer.on("stream", (remoteStream) => {
-        document.getElementById("remoteVideo").srcObject = remoteStream;
-      });
+      div.className = "message " + (isMe ? "me" : "other");
+      div.textContent = text;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
     }
 
-    socket.on("callIncoming", async (data) => {
-      const accept = confirm(`${data.name} sizi arıyor. Kabul ediyor musunuz?`);
-      if (!accept) return;
+    // 📞 Arama başlatma
+    callBtn.onclick = async () => {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
 
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      document.getElementById("localVideo").srcObject = stream;
+      peerConnection = new RTCPeerConnection(config);
+      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-      peer = new SimplePeer({
-        initiator: false,
-        trickle: false,
-        stream
+      peerConnection.onicecandidate = (e) => {
+        if (e.candidate) {
+          socket.emit("callUser", {
+            target: remoteSocketId,
+            caller: socket.id,
+            candidate: e.candidate
+          });
+        }
+      };
+
+      peerConnection.ontrack = (e) => {
+        remoteVideo.srcObject = e.streams[0];
+      };
+
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+
+      socket.emit("callUser", {
+        target: remoteSocketId,
+        caller: socket.id,
+        offer
       });
+    };
 
-      peer.on("signal", (signal) => {
-        socket.emit("answerCall", { signal, to: data.from });
-      });
+    // 🎯 Gelen çağrı
+    socket.on("incomingCall", async ({ from, offer }) => {
+      remoteSocketId = from;
+      incomingModal.style.display = "block";
 
-      peer.on("stream", (remoteStream) => {
-        document.getElementById("remoteVideo").srcObject = remoteStream;
-      });
+      acceptCallBtn.onclick = async () => {
+        incomingModal.style.display = "none";
 
-      peer.signal(data.signal);
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = localStream;
+
+        peerConnection = new RTCPeerConnection(config);
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+        peerConnection.onicecandidate = (e) => {
+          if (e.candidate) {
+            socket.emit("callUser", {
+              target: remoteSocketId,
+              caller: socket.id,
+              candidate: e.candidate
+            });
+          }
+        };
+
+        peerConnection.ontrack = (e) => {
+          remoteVideo.srcObject = e.streams[0];
+        };
+
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        socket.emit("answerCall", { to: from, answer });
+      };
+
+      declineCallBtn.onclick = () => {
+        incomingModal.style.display = "none";
+        socket.emit("callEnded", { to: from });
+      };
     });
 
-    socket.on("callAccepted", (signal) => {
-      peer.signal(signal);
+    socket.on("callAccepted", async ({ answer }) => {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
     });
+
+    socket.on("callUser", async ({ candidate }) => {
+      if (candidate) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+    });
+
+    socket.on("callEnded", () => {
+      if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+      }
+      remoteVideo.srcObject = null;
+      alert("Çağrı sonlandırıldı");
+    });
+
+    // Remote kullanıcıyı al
+    socket.on("newUser", (socketId) => {
+      if (socketId !== socket.id) {
+        remoteSocketId = socketId;
+      }
+    });
+
   </script>
 </body>
 </html>
