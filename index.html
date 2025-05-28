@@ -1,160 +1,200 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Canlı Chat</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Realtime Chat App + Sesli Arama</title>
   <style>
     body {
-      background-color: #111;
-      color: #fff;
       font-family: Arial, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
       margin: 0;
-    }
-    .chat-container {
-      background-color: #1e1e1e;
-      padding: 20px;
-      border-radius: 10px;
-      width: 100%;
-      max-width: 500px;
+      padding: 0;
+      background-color: #f5f5f5;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      height: 100vh;
     }
-    .chat-header {
+    #chat-header {
+      background-color: #0084ff;
+      color: white;
+      padding: 10px;
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      font-weight: bold;
-      font-size: 16px;
+      align-items: center;
     }
-    .chat-messages {
-      background-color: #222;
-      padding: 10px;
-      border-radius: 10px;
-      height: 300px;
+    #messages {
+      flex: 1;
       overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
+      padding: 10px;
+      background: #fff;
     }
     .message {
-      padding: 8px 12px;
-      border-radius: 15px;
-      max-width: 70%;
-      word-wrap: break-word;
+      max-width: 60%;
+      margin: 5px 0;
+      padding: 10px;
+      border-radius: 10px;
+      clear: both;
     }
-    .own {
-      background-color: #007aff;
-      color: white;
-      align-self: flex-end;
+    .me {
+      background-color: #dcf8c6;
+      float: right;
       text-align: right;
     }
     .other {
-      background-color: #3a3a3a;
-      align-self: flex-start;
+      background-color: #ececec;
+      float: left;
     }
-    .input-area {
+    #typing {
+      font-style: italic;
+      color: gray;
+      padding-left: 10px;
+    }
+    #input-container {
       display: flex;
-      gap: 10px;
+      padding: 10px;
+      background-color: #f0f0f0;
     }
-    #messageInput {
-      flex: 1;
+    #username, #message-input {
       padding: 8px;
-      border-radius: 5px;
-      border: none;
+      margin-right: 5px;
     }
-    #sendBtn {
-      padding: 8px 16px;
-      background-color: #007aff;
-      border: none;
-      border-radius: 5px;
-      color: white;
-      cursor: pointer;
+    #message-input {
+      flex: 1;
     }
-    .typing-indicator {
-      font-size: 12px;
-      color: #aaa;
+    #send-btn, #call-btn {
+      padding: 8px 12px;
+    }
+    video {
+      width: 200px;
+      height: 150px;
+      margin: 5px;
+      background: black;
     }
   </style>
 </head>
 <body>
-  <div class="chat-container">
-    <div class="chat-header">
-      <div>
-        <span id="chatWith">Sohbet: </span><br/>
-        <span id="chatTarget" style="font-size: 13px; color: #aaa;"></span>
-      </div>
-      <span id="typing" class="typing-indicator" style="display:none;">Yazıyor...</span>
-    </div>
-    <div id="messages" class="chat-messages"></div>
-    <div class="input-area">
-      <input type="text" id="messageInput" placeholder="Mesaj yaz..." />
-      <button id="sendBtn">Gönder</button>
-    </div>
+  <div id="chat-header">
+    <div>Sohbet: <span id="chat-with">Bağlanıyor...</span></div>
+    <button id="call-btn">📞 Ara</button>
   </div>
 
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <div id="messages"></div>
+  <div id="typing"></div>
+
+  <div id="input-container">
+    <input id="username" placeholder="Adınız" />
+    <input id="message-input" placeholder="Mesajınızı yazın..." />
+    <button id="send-btn">Gönder</button>
+  </div>
+
+  <div style="display: flex; justify-content: center;">
+    <video id="localVideo" autoplay muted></video>
+    <video id="remoteVideo" autoplay></video>
+  </div>
+
+  <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
   <script>
-    const username = prompt("Kullanıcı adınızı girin:");
     const socket = io();
 
-    socket.emit("registerUser", username); // kullanıcıyı server'a bildir
+    const usernameInput = document.getElementById('username');
+    const messageInput = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+    const messages = document.getElementById('messages');
+    const typing = document.getElementById('typing');
+    const chatWith = document.getElementById('chat-with');
 
-    const messagesDiv = document.getElementById("messages");
-    const input = document.getElementById("messageInput");
-    const sendBtn = document.getElementById("sendBtn");
-    const typingSpan = document.getElementById("typing");
-    const chatTarget = document.getElementById("chatTarget");
-
-    sendBtn.addEventListener("click", sendMessage);
-    input.addEventListener("keypress", (e) => {
-      socket.emit("typing");
-      if (e.key === "Enter") {
-        e.preventDefault();
-        sendMessage();
+    sendBtn.onclick = () => {
+      const username = usernameInput.value.trim();
+      const message = messageInput.value.trim();
+      if (username && message) {
+        socket.emit('sendMessage', { username, message });
+        messageInput.value = '';
       }
+    };
+
+    messageInput.addEventListener('input', () => {
+      socket.emit('typing');
     });
 
-    function sendMessage() {
-      const message = input.value.trim();
-      if (message === "") return;
-
-      socket.emit("sendMessage", { username, message });
-
-      addMessage(username, message, true); // kendi mesajı
-      input.value = "";
-    }
-
-    function addMessage(user, message, isOwn = false) {
-      const msgEl = document.createElement("div");
-      msgEl.classList.add("message", isOwn ? "own" : "other");
-      msgEl.textContent = `${user}: ${message}`;
-      messagesDiv.appendChild(msgEl);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
-
-    socket.on("receiveMessage", (data) => {
-      if (data.username !== username) {
-        addMessage(data.username, data.message, false);
-      }
+    socket.on('receiveMessage', ({ username, message }) => {
+      const div = document.createElement('div');
+      div.classList.add('message');
+      div.classList.add(username === usernameInput.value ? 'me' : 'other');
+      div.innerHTML = `<strong>${username}:</strong> ${message}`;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
     });
 
-    socket.on("userConnected", (user) => {
-      if (user !== username) {
-        chatTarget.textContent = `Şu anda konuştuğun kişi: ${user}`;
-      }
+    socket.on('showTyping', () => {
+      typing.textContent = 'Yazıyor...';
+      setTimeout(() => typing.textContent = '', 1500);
     });
 
-    socket.on("showTyping", () => {
-      typingSpan.style.display = "inline";
-      clearTimeout(typingSpan.timer);
-      typingSpan.timer = setTimeout(() => {
-        typingSpan.style.display = "none";
-      }, 1500);
+    socket.on('connect', () => {
+      chatWith.textContent = 'Bağlandı';
+    });
+
+    // --- WebRTC Sesli Arama ---
+    const callBtn = document.getElementById('call-btn');
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+
+    let localStream;
+    let peerConnection;
+
+    const config = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' }
+      ]
+    };
+
+    callBtn.onclick = async () => {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      localVideo.srcObject = localStream;
+
+      peerConnection = new RTCPeerConnection(config);
+      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+      peerConnection.ontrack = ({ streams: [stream] }) => {
+        remoteVideo.srcObject = stream;
+      };
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('ice-candidate', event.candidate);
+        }
+      };
+
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      socket.emit('offer', offer);
+    };
+
+    socket.on('offer', async (offer) => {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      localVideo.srcObject = localStream;
+
+      peerConnection = new RTCPeerConnection(config);
+      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+      peerConnection.ontrack = ({ streams: [stream] }) => {
+        remoteVideo.srcObject = stream;
+      };
+
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      socket.emit('answer', answer);
+    });
+
+    socket.on('answer', async (answer) => {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    });
+
+    socket.on('ice-candidate', async (candidate) => {
+      if (peerConnection) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      }
     });
   </script>
 </body>
