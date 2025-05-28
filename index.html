@@ -2,173 +2,197 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Realtime Chat App</title>
+  <title>Canlı Sohbet</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f4f4f4;
+      background-color: #f4f4f4;
       margin: 0;
     }
-    .chat-container {
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-    .chat-header {
+    header {
       background-color: #007bff;
       color: white;
-      padding: 1rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      padding: 10px;
+      font-size: 18px;
     }
-    .chat-messages {
-      flex: 1;
-      padding: 1rem;
+    #messages {
+      height: 300px;
       overflow-y: auto;
-      background: #fff;
-    }
-    .chat-input {
-      display: flex;
-      padding: 1rem;
-      background: #f0f0f0;
-    }
-    .chat-input input[type="text"] {
-      flex: 1;
-      padding: 0.5rem;
-      margin-right: 0.5rem;
-    }
-    .chat-input button {
-      padding: 0.5rem 1rem;
+      padding: 10px;
+      background: white;
     }
     .message {
-      margin-bottom: 10px;
+      padding: 8px;
+      margin: 5px;
+      border-radius: 5px;
+      max-width: 60%;
+      clear: both;
     }
-    .right {
-      text-align: right;
+    .me {
+      background-color: #DCF8C6;
+      float: right;
     }
-    .typing {
-      font-size: 0.9em;
-      color: gray;
-      margin-right: 10px;
+    .other {
+      background-color: #ECECEC;
+      float: left;
     }
-    #remoteVideo, #localVideo {
-      width: 45%;
-      background: black;
-      height: 200px;
+    #typing {
+      font-style: italic;
+      padding: 5px 10px;
+      color: #666;
     }
-    .video-section {
+    footer {
+      display: flex;
+      padding: 10px;
+      gap: 10px;
+      background: #f0f0f0;
+    }
+    footer input {
+      flex: 1;
+      padding: 8px;
+    }
+    footer button {
+      padding: 8px 12px;
+    }
+    #video-container {
       display: flex;
       justify-content: center;
       gap: 10px;
       padding: 10px;
-      background: #f8f9fa;
+    }
+    video {
+      width: 250px;
+      height: 180px;
+      background: black;
     }
   </style>
 </head>
 <body>
-  <div class="chat-container">
-    <div class="chat-header">
-      <span id="chatStatus">Sohbet: Bağlandı</span>
-      <button onclick="startCall()">📞 Ara</button>
-    </div>
-    <div class="chat-messages" id="messages"></div>
-    <div class="chat-input">
-      <input type="text" id="usernameInput" placeholder="Adınız" />
-      <input type="text" id="messageInput" placeholder="Mesajınızı yazın..." />
-      <button onclick="sendMessage()">Gönder</button>
-    </div>
-    <div class="video-section">
-      <video id="localVideo" autoplay muted></video>
-      <video id="remoteVideo" autoplay></video>
-    </div>
+  <header>
+    Sohbet: <span id="activeUser">Bağlandı</span>
+    <button style="float:right" onclick="startCall()">📞 Ara</button>
+  </header>
+
+  <div id="messages"></div>
+  <div id="typing"></div>
+
+  <footer>
+    <input id="usernameInput" placeholder="Adınız" />
+    <input id="messageInput" placeholder="Mesajınızı yazın..." />
+    <button onclick="sendMessage()">Gönder</button>
+  </footer>
+
+  <div id="video-container">
+    <video id="localVideo" autoplay muted></video>
+    <video id="remoteVideo" autoplay></video>
   </div>
 
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
+  <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
   <script>
     const socket = io();
-    const messages = document.getElementById("messages");
+    const messagesDiv = document.getElementById("messages");
     const input = document.getElementById("messageInput");
     const usernameInput = document.getElementById("usernameInput");
-    const localVideo = document.getElementById("localVideo");
-    const remoteVideo = document.getElementById("remoteVideo");
+    const typingDiv = document.getElementById("typing");
+    const activeUser = document.getElementById("activeUser");
 
-    let username = '';
+    let username = "";
     let peer;
 
-    input.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") sendMessage();
-      socket.emit("typing");
-    });
-
-    socket.on("receiveMessage", (data) => {
-      const div = document.createElement("div");
-      div.className = "message " + (data.username === username ? "right" : "");
-      div.innerText = `${data.username}: ${data.message}`;
-      messages.appendChild(div);
-      messages.scrollTop = messages.scrollHeight;
-    });
-
-    socket.on("showTyping", () => {
-      document.getElementById("chatStatus").innerText = "Sohbet: Yazıyor...";
-      setTimeout(() => {
-        document.getElementById("chatStatus").innerText = "Sohbet: Bağlandı";
-      }, 1000);
-    });
-
-    function sendMessage() {
-      if (!username) {
-        username = usernameInput.value.trim();
-        if (!username) return alert("Ad giriniz.");
+    // Kullanıcı kaydı
+    usernameInput.addEventListener("change", () => {
+      username = usernameInput.value.trim();
+      if (username) {
+        socket.emit("register", username);
+        activeUser.innerText = username;
       }
+    });
 
+    // Mesaj gönderme
+    function sendMessage() {
       const message = input.value.trim();
-      if (message !== "") {
+      if (message && username) {
         socket.emit("sendMessage", { username, message });
         input.value = "";
       }
     }
 
-    function startCall() {
-      navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-        localVideo.srcObject = stream;
+    input.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") sendMessage();
+      else socket.emit("typing");
+    });
 
-        peer = new SimplePeer({ initiator: true, trickle: false, stream });
-        peer.on("signal", signal => {
-          socket.emit("callUser", {
-            signal,
-            to: prompt("Karşı tarafın socket ID'si?"),
-            name: username
-          });
-        });
+    // Mesaj alma
+    socket.on("receiveMessage", (data) => {
+      const div = document.createElement("div");
+      div.classList.add("message");
+      div.classList.add(data.username === username ? "me" : "other");
+      div.innerText = `${data.username}: ${data.message}`;
+      messagesDiv.appendChild(div);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    });
 
-        peer.on("stream", remoteStream => {
-          remoteVideo.srcObject = remoteStream;
+    // Yazıyor bildirimi
+    socket.on("showTyping", () => {
+      typingDiv.innerText = "Yazıyor...";
+      clearTimeout(window.typingTimeout);
+      window.typingTimeout = setTimeout(() => (typingDiv.innerText = ""), 1000);
+    });
+
+    // Çağrı başlat
+    async function startCall() {
+      const toUsername = prompt("Kimi aramak istiyorsun (kullanıcı adı)?");
+      if (!toUsername || !username) return;
+
+      const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      document.getElementById("localVideo").srcObject = stream;
+
+      peer = new SimplePeer({
+        initiator: true,
+        trickle: false,
+        stream: stream,
+      });
+
+      peer.on("signal", (signal) => {
+        socket.emit("callUser", {
+          signal,
+          toUsername,
+          name: username
         });
+      });
+
+      peer.on("stream", (remoteStream) => {
+        document.getElementById("remoteVideo").srcObject = remoteStream;
       });
     }
 
-    socket.on("callIncoming", (data) => {
-      const accept = confirm(`${data.name} sizi arıyor. Kabul edilsin mi?`);
+    // Gelen çağrı
+    socket.on("callIncoming", async (data) => {
+      const accept = confirm(`${data.name} sizi arıyor. Kabul ediyor musunuz?`);
       if (!accept) return;
 
-      navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-        localVideo.srcObject = stream;
+      const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      document.getElementById("localVideo").srcObject = stream;
 
-        peer = new SimplePeer({ initiator: false, trickle: false, stream });
-        peer.on("signal", signal => {
-          socket.emit("answerCall", { signal, to: data.from });
-        });
-        peer.on("stream", remoteStream => {
-          remoteVideo.srcObject = remoteStream;
-        });
-
-        peer.signal(data.signal);
+      peer = new SimplePeer({
+        initiator: false,
+        trickle: false,
+        stream: stream,
       });
+
+      peer.on("signal", (signal) => {
+        socket.emit("answerCall", { signal, to: data.from });
+      });
+
+      peer.on("stream", (remoteStream) => {
+        document.getElementById("remoteVideo").srcObject = remoteStream;
+      });
+
+      peer.signal(data.signal);
     });
 
+    // Çağrı kabul edildi
     socket.on("callAccepted", (signal) => {
       peer.signal(signal);
     });
