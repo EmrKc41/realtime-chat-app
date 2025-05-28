@@ -1,15 +1,14 @@
-// ✅ server.js
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const path = require('path');
-const connectDB = require('./config/db');
+const { Server } = require('socket.io');
 require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
 
-const io = require('socket.io')(server, {
+const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST']
@@ -22,47 +21,34 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// MongoDB bağlantısı
-connectDB();
-
-// API Rotaları
-const authRoutes = require('./routes/auth');
-app.use('/api/auth', authRoutes);
-
-// HTML dosyasını sun
+// Serve HTML
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// WebSocket bağlantısı
+// Socket.IO
 io.on('connection', (socket) => {
   console.log('🔌 Yeni kullanıcı bağlandı:', socket.id);
 
   socket.on('sendMessage', (data) => {
     const { username, message } = data;
-    console.log(`📩 Mesaj alındı [${username}]: ${message}`);
-
-    io.emit('receiveMessage', {
-      username,
-      message
-    });
+    io.emit('receiveMessage', { username, message });
   });
 
   socket.on('typing', () => {
     socket.broadcast.emit('showTyping');
   });
 
-  // 🔈 WebRTC sinyal iletimi
-  socket.on('call', (data) => {
-    socket.broadcast.emit('call', data);
+  socket.on('callUser', (data) => {
+    io.to(data.to).emit('callIncoming', {
+      from: socket.id,
+      name: data.name,
+      signal: data.signal,
+    });
   });
 
-  socket.on('answer', (data) => {
-    socket.broadcast.emit('answer', data);
-  });
-
-  socket.on('ice-candidate', (data) => {
-    socket.broadcast.emit('ice-candidate', data);
+  socket.on('answerCall', (data) => {
+    io.to(data.to).emit('callAccepted', data.signal);
   });
 
   socket.on('disconnect', () => {
@@ -70,7 +56,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// Sunucuyu başlat
 server.listen(PORT, () => {
   console.log(`🚀 Sunucu ayakta, port: ${PORT}`);
 });
