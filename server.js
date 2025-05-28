@@ -63,9 +63,13 @@ io.on('connection', (socket) => {
     io.to(data.to).emit("callAccepted", data.signal);
   });
 
+  // Kullanıcının socket ID'sini diğerlerine bildir
+  socket.broadcast.emit("newUser", socket.id);
+
   // Kullanıcı ayrıldı
   socket.on('disconnect', () => {
     console.log('❌ Kullanıcı ayrıldı:', socket.id);
+    socket.broadcast.emit("callEnded");
   });
 });
 
