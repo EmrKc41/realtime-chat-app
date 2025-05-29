@@ -16,7 +16,7 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 5000;
-const users = {}; // 🔄 Kullanıcı adı -> socket.id eşlemesi
+const users = {}; // Kullanıcı adı -> socket.id
 
 app.use(cors());
 app.use(express.json());
@@ -26,9 +26,8 @@ app.get('/', (req, res) => {
 });
 
 io.on('connection', (socket) => {
-  console.log('🔌 Bağlantı:', socket.id);
+  console.log('🔌 Bağlandı:', socket.id);
 
-  // 💾 Kullanıcıyı kaydet
   socket.on("register", (username) => {
     users[username] = socket.id;
     console.log(`${username} kayıt oldu (${socket.id})`);
@@ -43,9 +42,8 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('showTyping');
   });
 
-  // 📞 Arama başlat
   socket.on('callUser', (data) => {
-    const targetSocketId = users[data.toUsername]; // 🔍 kullanıcı adına göre ID al
+    const targetSocketId = users[data.toUsername];
     if (targetSocketId) {
       io.to(targetSocketId).emit('callIncoming', {
         from: socket.id,
@@ -55,12 +53,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ✅ Arama kabul edildi
   socket.on('answerCall', (data) => {
     io.to(data.to).emit('callAccepted', data.signal);
   });
 
-  // 🔁 Bağlantı koparsa
   socket.on('disconnect', () => {
     for (let key in users) {
       if (users[key] === socket.id) {
