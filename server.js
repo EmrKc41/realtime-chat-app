@@ -16,7 +16,7 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 5000;
-const users = {}; // Kullanıcı adı -> socket.id
+const users = {};
 
 app.use(cors());
 app.use(express.json());
@@ -34,21 +34,21 @@ io.on('connection', (socket) => {
   });
 
   socket.on('sendMessage', (data) => {
-    const { username, message } = data;
-    io.emit('receiveMessage', { username, message });
+    io.emit('receiveMessage', data);
   });
 
   socket.on('typing', () => {
     socket.broadcast.emit('showTyping');
   });
 
-  socket.on('callUser', (data) => {
-    const targetSocketId = users[data.toUsername];
-    if (targetSocketId) {
-      io.to(targetSocketId).emit('callIncoming', {
-        from: socket.id,
+  socket.on('startCall', (data) => {
+    const from = socket.id;
+    const targetSocket = Object.values(users).find(id => id !== from);
+    if (targetSocket) {
+      io.to(targetSocket).emit('incomingCall', {
+        from: from,
         name: data.name,
-        signal: data.signal,
+        signal: data.signal
       });
     }
   });
