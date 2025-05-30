@@ -4,6 +4,7 @@ const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
 const connectDB = require('./config/db');
+connectDB();
 const Message = require('./models/Message');
 
 require('dotenv').config();
