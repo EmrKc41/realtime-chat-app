@@ -3,6 +3,9 @@ const cors = require('cors');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
+const connectDB = require('./config/db');
+const Message = require('./models/Message');
+
 require('dotenv').config();
 
 const app = express();
@@ -33,9 +36,21 @@ io.on('connection', (socket) => {
     console.log(`${username} kayıt oldu (${socket.id})`);
   });
 
-  socket.on('sendMessage', (data) => {
-    io.emit('receiveMessage', data);
-  });
+  socket.on('sendMessage', async (data) => {
+  io.emit('receiveMessage', data);
+
+  try {
+    const newMessage = new Message({
+      from: data.username,
+      to: "public", // genel oda veya ileride kullanıcıya özelse dinamik yapabilirsin
+      message: data.message
+    });
+    await newMessage.save();
+    console.log("💾 Mesaj kaydedildi:", data.message);
+  } catch (err) {
+    console.error("❌ Mesaj kaydedilemedi:", err.message);
+  }
+});
 
   socket.on('typing', () => {
     socket.broadcast.emit('showTyping');
